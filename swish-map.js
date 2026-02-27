@@ -6,11 +6,13 @@
  * See README.md for all options.
  */
 (() => {
+  // ===========================
+  // Swish / Jetboost / Mapbox
+  // Full drop-in script
+  // ===========================
+
   const cfg = window.__swishMapConfig || {};
 
-  // ---------------------------
-  // Configurable constants
-  // ---------------------------
   const MAP_SELECTOR        = cfg.mapSelector       || '[class*="jetboost-map-"]';
   const SIDEBAR_SELECTOR    = cfg.sidebarSelector   || '.map_sidebar';
   const LIST_ITEM_SELECTOR  = cfg.listItemSelector  || '.map_list-new .w-dyn-item[jb-latitude][jb-longitude]';
@@ -28,9 +30,6 @@
 
   const USER_CLICK_FREEZE_MS       = cfg.clickFreezeMs       ?? 900;
   const USER_MAP_INTERACTION_FREEZE_MS = cfg.mapInteractionFreezeMs ?? 8000;
-
-  const DISABLE_CANVAS_FOCUS = cfg.disableCanvasFocus ?? true;
-  const DISABLE_SCROLL_ZOOM_TOUCH = cfg.disableScrollZoomTouch ?? true;
 
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function motionDuration(ms) { return prefersReducedMotion ? 0 : ms; }
@@ -58,25 +57,24 @@
   }
 
   function getMap() {
-    var map = window.__swishJetboostMap;
+    const map = window.__swishJetboostMap;
     if (!map) return null;
     try { map.getCenter(); return map; } catch (e) { return null; }
   }
 
-  function disableCanvasFocusFn(map) {
-    if (!DISABLE_CANVAS_FOCUS) return;
+  function disableCanvasFocus(map) {
     if (!map || map.__swishCanvasFocusDisabled) return;
     map.__swishCanvasFocusDisabled = true;
 
-    var canvas = map.getCanvas && map.getCanvas();
+    const canvas = map.getCanvas?.();
     if (!canvas) return;
 
-    canvas.setAttribute('tabindex', '-1');
-    canvas.style.outline = 'none';
+    canvas.setAttribute("tabindex", "-1");
+    canvas.style.outline = "none";
 
-    try { if (map.keyboard && map.keyboard.disable) map.keyboard.disable(); } catch (e) {}
+    try { map.keyboard?.disable?.(); } catch (e) {}
 
-    canvas.addEventListener('focus', function () {
+    canvas.addEventListener("focus", () => {
       canvas.blur();
     }, true);
   }
@@ -97,14 +95,14 @@
   function getObstructionSide(mapRect, sideRect) {
     if (!rectsOverlap(mapRect, sideRect)) return null;
 
-    var distances = [
+    const distances = [
       { side: 'left',   d: Math.abs(sideRect.right - mapRect.left) },
       { side: 'right',  d: Math.abs(mapRect.right - sideRect.left) },
       { side: 'top',    d: Math.abs(sideRect.bottom - mapRect.top) },
       { side: 'bottom', d: Math.abs(mapRect.bottom - sideRect.top) }
     ];
 
-    distances.sort(function (a, b) { return a.d - b.d; });
+    distances.sort((a, b) => a.d - b.d);
     return distances[0].side;
   }
 
@@ -112,25 +110,24 @@
   // 1) Padding
   // ---------------------------
   function computePadding() {
-    var mapEl = getMapEl();
-    var sidebarEl = document.querySelector(SIDEBAR_SELECTOR);
+    const mapEl = getMapEl();
+    const sidebarEl = document.querySelector(SIDEBAR_SELECTOR);
 
-    var base = { top: EDGE_PAD, right: EDGE_PAD, bottom: EDGE_PAD, left: EDGE_PAD };
+    const base = { top: EDGE_PAD, right: EDGE_PAD, bottom: EDGE_PAD, left: EDGE_PAD };
     if (!mapEl || !sidebarEl) return base;
 
-    var mapRect = mapEl.getBoundingClientRect();
-    var sideRect = sidebarEl.getBoundingClientRect();
+    const mapRect = mapEl.getBoundingClientRect();
+    const sideRect = sidebarEl.getBoundingClientRect();
 
-    var obstructionSide = getObstructionSide(mapRect, sideRect);
+    const obstructionSide = getObstructionSide(mapRect, sideRect);
     if (!obstructionSide) return base;
 
-    var result = { top: base.top, right: base.right, bottom: base.bottom, left: base.left };
-    if (obstructionSide === 'left')   result.left   = base.left   + Math.round(sideRect.width + GUTTER);
-    if (obstructionSide === 'right')  result.right  = base.right  + Math.round(sideRect.width + GUTTER);
-    if (obstructionSide === 'top')    result.top    = base.top    + Math.round(sideRect.height + GUTTER);
-    if (obstructionSide === 'bottom') result.bottom = base.bottom + Math.round(sideRect.height + GUTTER);
+    if (obstructionSide === 'left')   return { ...base, left: base.left + Math.round(sideRect.width + GUTTER) };
+    if (obstructionSide === 'right')  return { ...base, right: base.right + Math.round(sideRect.width + GUTTER) };
+    if (obstructionSide === 'top')    return { ...base, top: base.top + Math.round(sideRect.height + GUTTER) };
+    if (obstructionSide === 'bottom') return { ...base, bottom: base.bottom + Math.round(sideRect.height + GUTTER) };
 
-    return result;
+    return base;
   }
 
   function applyPadding(map) {
@@ -146,80 +143,72 @@
   }
 
   function getVisiblePoints() {
-    var items = Array.from(document.querySelectorAll(LIST_ITEM_SELECTOR)).filter(isVisible);
+    const items = Array.from(document.querySelectorAll(LIST_ITEM_SELECTOR)).filter(isVisible);
     return items
-      .map(function (el) {
-        var lat = parseFloat(el.getAttribute('jb-latitude'));
-        var lng = parseFloat(el.getAttribute('jb-longitude'));
+      .map(el => {
+        const lat = parseFloat(el.getAttribute('jb-latitude'));
+        const lng = parseFloat(el.getAttribute('jb-longitude'));
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-        return { lat: lat, lng: lng };
+        return { lat, lng };
       })
       .filter(Boolean);
   }
 
   function getResultsSignature() {
-    var pts = getVisiblePoints();
+    const pts = getVisiblePoints();
     return pts
-      .map(function (p) { return p.lat.toFixed(5) + ',' + p.lng.toFixed(5); })
+      .map(p => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`)
       .sort()
       .join('|');
   }
 
-  function fitToVisibleMarkers(map, opts) {
-    opts = opts || {};
-    var maxZoom = opts.maxZoom != null ? opts.maxZoom : DEFAULT_MAX_ZOOM;
-    var duration = opts.duration != null ? opts.duration : 450;
-
-    var pts = getVisiblePoints();
+  function fitToVisibleMarkers(map, { maxZoom = DEFAULT_MAX_ZOOM, duration = 450 } = {}) {
+    const pts = getVisiblePoints();
     if (!pts.length) return;
 
-    var d = motionDuration(duration);
+    const d = motionDuration(duration);
 
-    var padding = computePadding();
-    padding.top    += FIT_EXTRA_PAD;
-    padding.right  += FIT_EXTRA_PAD;
+    const padding = computePadding();
+    padding.top += FIT_EXTRA_PAD;
+    padding.right += FIT_EXTRA_PAD;
     padding.bottom += FIT_EXTRA_PAD;
-    padding.left   += FIT_EXTRA_PAD;
+    padding.left += FIT_EXTRA_PAD;
 
     if (pts.length === 1) {
       map.easeTo({
         center: [pts[0].lng, pts[0].lat],
         zoom: maxZoom,
-        padding: padding,
+        padding,
         duration: d
       });
       return;
     }
 
-    var b = new mapboxgl.LngLatBounds([pts[0].lng, pts[0].lat], [pts[0].lng, pts[0].lat]);
-    for (var i = 1; i < pts.length; i++) b.extend([pts[i].lng, pts[i].lat]);
+    const b = new mapboxgl.LngLatBounds([pts[0].lng, pts[0].lat], [pts[0].lng, pts[0].lat]);
+    for (let i = 1; i < pts.length; i++) b.extend([pts[i].lng, pts[i].lat]);
 
-    map.fitBounds(b, { padding: padding, maxZoom: maxZoom, duration: d });
+    map.fitBounds(b, { padding, maxZoom, duration: d });
   }
 
-  function scheduleFit(map, opts) {
-    opts = opts || {};
-    var force = opts.force || false;
-    var duration = opts.duration != null ? opts.duration : 450;
-
+  function scheduleFit(map, { force = false, duration = 450 } = {}) {
     if (!map) return;
     if (Date.now() < suppressAutoFitUntil) return;
 
-    var sig = getResultsSignature();
+    const sig = getResultsSignature();
     if (!force && sig === lastResultsSig) return;
 
     lastResultsSig = sig;
 
     if (fitTimer) clearTimeout(fitTimer);
-    var myJob = ++fitJobId;
+    const myJob = ++fitJobId;
 
-    fitTimer = setTimeout(function () {
+    fitTimer = setTimeout(() => {
       if (myJob !== fitJobId) return;
       if (Date.now() < suppressAutoFitUntil) return;
 
-      var run = function () {
+      const run = () => {
         if (Date.now() < suppressAutoFitUntil) return;
-        fitToVisibleMarkers(map, { duration: duration });
+        fitToVisibleMarkers(map, { duration });
       };
 
       if (map.isMoving && map.isMoving()) {
@@ -234,77 +223,67 @@
   // 2.5) Nudge popups into view
   // ---------------------------
   function getLatestPopupEl() {
-    var popups = Array.from(document.querySelectorAll(POPUP_SELECTOR));
+    const popups = Array.from(document.querySelectorAll(POPUP_SELECTOR));
     return popups.length ? popups[popups.length - 1] : null;
   }
 
-  function nudgePopupIntoView(map, attempt, targetEl) {
-    attempt = attempt || 0;
-    var mapEl = getMapEl();
-    var sidebarEl = document.querySelector(SIDEBAR_SELECTOR);
-    var popupEl = targetEl || getLatestPopupEl();
+  function nudgePopupIntoView(map, attempt = 0, targetEl = null) {
+    const mapEl = getMapEl();
+    const sidebarEl = document.querySelector(SIDEBAR_SELECTOR);
+    const popupEl = targetEl || getLatestPopupEl();
 
     if (!map || !mapEl || !sidebarEl || !popupEl || !popupEl.isConnected) return;
 
-    var mapRect = mapEl.getBoundingClientRect();
-    var sideRect = sidebarEl.getBoundingClientRect();
-    var popupRect = popupEl.getBoundingClientRect();
+    const mapRect = mapEl.getBoundingClientRect();
+    const sideRect = sidebarEl.getBoundingClientRect();
+    const popupRect = popupEl.getBoundingClientRect();
 
-    var obstructionSide = getObstructionSide(mapRect, sideRect);
+    const obstructionSide = getObstructionSide(mapRect, sideRect);
     if (!obstructionSide) return;
     if (!rectsOverlap(popupRect, sideRect)) return;
 
-    var shiftPopupX = 0;
-    var shiftPopupY = 0;
+    let shiftPopupX = 0;
+    let shiftPopupY = 0;
 
     if (obstructionSide === 'left') {
-      var minLeft = sideRect.right + GUTTER;
+      const minLeft = sideRect.right + GUTTER;
       if (popupRect.left < minLeft) shiftPopupX = (minLeft - popupRect.left);
     } else if (obstructionSide === 'right') {
-      var maxRight = sideRect.left - GUTTER;
+      const maxRight = sideRect.left - GUTTER;
       if (popupRect.right > maxRight) shiftPopupX = -(popupRect.right - maxRight);
     } else if (obstructionSide === 'top') {
-      var minTop = sideRect.bottom + GUTTER;
+      const minTop = sideRect.bottom + GUTTER;
       if (popupRect.top < minTop) shiftPopupY = (minTop - popupRect.top);
     } else if (obstructionSide === 'bottom') {
-      var maxBottom = sideRect.top - GUTTER;
+      const maxBottom = sideRect.top - GUTTER;
       if (popupRect.bottom > maxBottom) shiftPopupY = -(popupRect.bottom - maxBottom);
     }
 
     if (!shiftPopupX && !shiftPopupY) return;
 
-    var center = map.getCenter();
-    var centerPx = map.project(center);
-    var nextCenterPx = centerPx.clone();
+    const center = map.getCenter();
+    const centerPx = map.project(center);
+    const nextCenterPx = centerPx.clone();
     nextCenterPx.x -= shiftPopupX;
     nextCenterPx.y -= shiftPopupY;
 
-    var nextCenter = map.unproject(nextCenterPx);
+    const nextCenter = map.unproject(nextCenterPx);
     map.easeTo({ center: nextCenter, duration: motionDuration(250) });
 
     if (attempt < 2) {
-      map.once('moveend', function () {
-        requestAnimationFrame(function () {
-          nudgePopupIntoView(map, attempt + 1, popupEl);
-        });
-      });
+      map.once('moveend', () => requestAnimationFrame(() => nudgePopupIntoView(map, attempt + 1, popupEl)));
     }
   }
 
   function watchForPopups(map) {
-    var mapEl = getMapEl();
+    const mapEl = getMapEl();
     if (!mapEl) return;
 
-    var observer = new MutationObserver(function (mutations) {
-      for (var i = 0; i < mutations.length; i++) {
-        var addedNodes = mutations[i].addedNodes || [];
-        for (var j = 0; j < addedNodes.length; j++) {
-          var node = addedNodes[j];
-          if (node.nodeType === 1 && (
-            (node.matches && node.matches(POPUP_SELECTOR)) ||
-            (node.querySelector && node.querySelector(POPUP_SELECTOR))
-          )) {
-            var run = function () { requestAnimationFrame(function () { nudgePopupIntoView(map); }); };
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        for (const node of m.addedNodes || []) {
+          if (node.nodeType === 1 && (node.matches?.(POPUP_SELECTOR) || node.querySelector?.(POPUP_SELECTOR))) {
+            const run = () => requestAnimationFrame(() => nudgePopupIntoView(map));
             if (map.isMoving()) map.once('moveend', run);
             else run();
             return;
@@ -323,40 +302,39 @@
     if (!map || map.__swishUserFreezeBound) return;
     map.__swishUserFreezeBound = true;
 
-    var freeze = function () { freezeAutoFit(USER_MAP_INTERACTION_FREEZE_MS); };
+    const freeze = () => freezeAutoFit(USER_MAP_INTERACTION_FREEZE_MS);
 
-    ['dragstart', 'zoomstart', 'rotatestart', 'pitchstart'].forEach(function (evt) {
-      map.on(evt, freeze);
-    });
+    ['dragstart', 'zoomstart', 'rotatestart', 'pitchstart'].forEach(evt => map.on(evt, freeze));
 
-    var canvas = map.getCanvas && map.getCanvas();
+    const canvas = map.getCanvas?.();
     if (canvas) {
       canvas.addEventListener('touchstart', freeze, { passive: true });
       canvas.addEventListener('wheel', freeze, { passive: true });
-      canvas.addEventListener('pointerdown', function (e) {
+      canvas.addEventListener('pointerdown', (e) => {
         if (e.pointerType === 'touch' || e.pointerType === 'pen') freeze();
       }, { passive: true });
     }
 
-    if (DISABLE_SCROLL_ZOOM_TOUCH && !isDesktopHover()) {
+    // Only disable scroll-zoom & drag-rotate on touch devices
+    if (!isDesktopHover()) {
       try {
-        if (map.scrollZoom && map.scrollZoom.disable) map.scrollZoom.disable();
-        if (map.dragRotate && map.dragRotate.disable) map.dragRotate.disable();
-        if (map.touchZoomRotate && map.touchZoomRotate.disableRotation) map.touchZoomRotate.disableRotation();
+        map.scrollZoom?.disable?.();
+        map.dragRotate?.disable?.();
+        map.touchZoomRotate?.disableRotation?.();
       } catch (e) {}
     }
   }
 
   // Sidebar card click: freeze auto-fit + restore scroll position
-  document.addEventListener('click', function (e) {
-    var trigger = e.target.closest(TRIGGER_SELECTOR);
+  document.addEventListener('click', (e) => {
+    const trigger = e.target.closest(TRIGGER_SELECTOR);
     if (!trigger) return;
 
-    var scrollY = window.scrollY;
+    const scrollY = window.scrollY;
 
     freezeAutoFit(USER_CLICK_FREEZE_MS);
 
-    requestAnimationFrame(function () {
+    requestAnimationFrame(() => {
       if (document.activeElement && document.activeElement !== document.body) {
         document.activeElement.blur();
       }
@@ -368,27 +346,26 @@
   // 3) Desktop hover opens popup
   // ---------------------------
   function closeAllPopups() {
-    document.querySelectorAll(POPUP_SELECTOR).forEach(function (p) {
-      var btn = p.querySelector('.mapboxgl-popup-close-button');
+    document.querySelectorAll(POPUP_SELECTOR).forEach(p => {
+      const btn = p.querySelector('.mapboxgl-popup-close-button');
       if (btn) btn.click();
       else p.remove();
     });
   }
 
   function getInteractiveLayerIds(map) {
-    var style = map.getStyle && map.getStyle();
-    var layers = (style && style.layers) || [];
-    var sources = (style && style.sources) || {};
+    const style = map.getStyle?.();
+    const layers = style?.layers || [];
+    const sources = style?.sources || {};
 
-    var ids = [];
-    if (layers.some(function (l) { return l.id === 'xk2x'; })) ids.push('xk2x');
+    const ids = [];
+    if (layers.some(l => l.id === 'xk2x')) ids.push('xk2x');
 
-    for (var i = 0; i < layers.length; i++) {
-      var l = layers[i];
+    for (const l of layers) {
       if (!l.source) continue;
       if (l.source === 'composite') continue;
       if (!sources[l.source]) continue;
-      if (ids.indexOf(l.id) === -1) ids.push(l.id);
+      if (!ids.includes(l.id)) ids.push(l.id);
     }
 
     return ids;
@@ -398,55 +375,54 @@
     if (map.__swishHoverSetup) return;
     map.__swishHoverSetup = true;
 
-    var interactiveLayers = [];
-    var lastKey = null;
-    var openT = null;
-    var closeT = null;
-    var moveRAF = null;
+    let interactiveLayers = [];
+    let lastKey = null;
+    let openT = null;
+    let closeT = null;
+    let moveRAF = null;
 
-    var refreshLayers = function () { interactiveLayers = getInteractiveLayerIds(map); };
+    const refreshLayers = () => { interactiveLayers = getInteractiveLayerIds(map); };
     refreshLayers();
     map.on('styledata', refreshLayers);
 
-    var mapEl = getMapEl();
+    const mapEl = getMapEl();
 
-    var cancelClose = function () { if (closeT) clearTimeout(closeT); closeT = null; };
-
-    var scheduleClose = function () {
+    const cancelClose = () => { if (closeT) clearTimeout(closeT); closeT = null; };
+    const scheduleClose = () => {
       cancelClose();
       if (openT) clearTimeout(openT);
       openT = null;
 
-      closeT = setTimeout(function () {
+      closeT = setTimeout(() => {
         if (!isDesktopHover()) return;
         closeAllPopups();
         lastKey = null;
       }, HOVER_CLOSE_DELAY);
     };
 
-    var scheduleOpen = function (e) {
+    const scheduleOpen = (e, key) => {
       cancelClose();
       if (openT) clearTimeout(openT);
 
-      openT = setTimeout(function () {
+      openT = setTimeout(() => {
         if (!isDesktopHover()) return;
 
         closeAllPopups();
 
-        var originalEvent = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
-        map.fire('click', { point: e.point, lngLat: e.lngLat, originalEvent: originalEvent });
+        const originalEvent = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
+        map.fire('click', { point: e.point, lngLat: e.lngLat, originalEvent });
 
-        var run = function () { requestAnimationFrame(function () { nudgePopupIntoView(map); }); };
+        const run = () => requestAnimationFrame(() => nudgePopupIntoView(map));
         if (map.isMoving()) map.once('moveend', run);
         else run();
       }, HOVER_OPEN_DELAY);
     };
 
-    var handleHoverMove = function (e) {
+    const handleHoverMove = (e) => {
       if (!isDesktopHover()) return;
 
-      var overPopup = mapEl && document.elementFromPoint(e.originalEvent.clientX, e.originalEvent.clientY);
-      if (overPopup && overPopup.closest && overPopup.closest(POPUP_SELECTOR)) {
+      const overPopup = mapEl && document.elementFromPoint(e.originalEvent.clientX, e.originalEvent.clientY)?.closest?.(POPUP_SELECTOR);
+      if (overPopup) {
         cancelClose();
         return;
       }
@@ -456,23 +432,23 @@
         return;
       }
 
-      var feats = map.queryRenderedFeatures(e.point, { layers: interactiveLayers });
-      var f = feats && feats[0];
+      const feats = map.queryRenderedFeatures(e.point, { layers: interactiveLayers });
+      const f = feats && feats[0];
 
       if (!f) {
         scheduleClose();
         return;
       }
 
-      var props = f.properties || {};
-      var key =
-        (f.id != null ? 'id:' + f.id : null) ||
-        (props.id   ? 'p:' + props.id   : null) ||
-        (props.slug ? 'p:' + props.slug : null) ||
-        (props.name ? 'p:' + props.name : null) ||
-        (f.geometry && f.geometry.coordinates
-          ? 'geo:' + JSON.stringify(f.geometry.coordinates)
-          : 'xy:' + Math.round(e.point.x) + ':' + Math.round(e.point.y));
+      // Reliable feature key — fall back to geometry, not mouse position
+      const key =
+        (f.id != null ? `id:${f.id}` : null) ||
+        (f.properties?.id   ? `p:${f.properties.id}`   : null) ||
+        (f.properties?.slug ? `p:${f.properties.slug}` : null) ||
+        (f.properties?.name ? `p:${f.properties.name}` : null) ||
+        (f.geometry?.coordinates
+          ? `geo:${JSON.stringify(f.geometry.coordinates)}`
+          : `xy:${Math.round(e.point.x)}:${Math.round(e.point.y)}`);
 
       if (key === lastKey) {
         cancelClose();
@@ -480,39 +456,38 @@
       }
 
       lastKey = key;
-      scheduleOpen(e);
+      scheduleOpen(e, key);
     };
 
     // Throttled mousemove via rAF
-    map.on('mousemove', function (e) {
+    map.on('mousemove', (e) => {
       if (moveRAF) return;
-      moveRAF = requestAnimationFrame(function () {
+      moveRAF = requestAnimationFrame(() => {
         moveRAF = null;
         handleHoverMove(e);
       });
     });
 
     if (mapEl) {
-      mapEl.addEventListener('mouseleave', function () {
+      mapEl.addEventListener('mouseleave', () => {
         if (!isDesktopHover()) return;
         scheduleClose();
       });
 
-      mapEl.addEventListener('mouseenter', function (evt) {
+      mapEl.addEventListener('mouseenter', (evt) => {
         if (!isDesktopHover()) return;
-        if (evt.target && evt.target.closest && evt.target.closest(POPUP_SELECTOR)) cancelClose();
+        if (evt.target?.closest?.(POPUP_SELECTOR)) cancelClose();
       }, true);
 
-      mapEl.addEventListener('mouseover', function (evt) {
+      mapEl.addEventListener('mouseover', (evt) => {
         if (!isDesktopHover()) return;
-        if (evt.target && evt.target.closest && evt.target.closest(POPUP_SELECTOR)) cancelClose();
+        if (evt.target?.closest?.(POPUP_SELECTOR)) cancelClose();
       }, true);
 
-      mapEl.addEventListener('mouseout', function (evt) {
+      mapEl.addEventListener('mouseout', (evt) => {
         if (!isDesktopHover()) return;
-        var related = evt.relatedTarget;
-        if (evt.target && evt.target.closest && evt.target.closest(POPUP_SELECTOR) &&
-            (!related || !related.closest || !related.closest(POPUP_SELECTOR))) {
+        const related = evt.relatedTarget;
+        if (evt.target?.closest?.(POPUP_SELECTOR) && (!related || !related.closest?.(POPUP_SELECTOR))) {
           scheduleClose();
         }
       }, true);
@@ -526,27 +501,27 @@
     if (!window.mapboxgl || !window.mapboxgl.Map || window.__swishMapboxPatched) return;
     window.__swishMapboxPatched = true;
 
-    var OriginalMap = window.mapboxgl.Map;
+    const OriginalMap = window.mapboxgl.Map;
 
     function PatchedMap(options) {
-      var map = new OriginalMap(options);
+      const map = new OriginalMap(options);
 
       try {
-        var container =
-          typeof options.container === 'string'
+        const container =
+          typeof options?.container === 'string'
             ? document.getElementById(options.container)
-            : options.container;
+            : options?.container;
 
         if (container && container.matches && container.matches(MAP_SELECTOR)) {
           window.__swishJetboostMap = map;
 
-          var run = function () {
+          const run = () => {
             applyPadding(map);
             lastResultsSig = getResultsSignature();
             scheduleFit(map, { force: true, duration: 0 });
             watchForPopups(map);
             bindUserInteractionFreeze(map);
-            disableCanvasFocusFn(map);
+            disableCanvasFocus(map);
             setupDesktopHover(map);
           };
 
@@ -563,8 +538,8 @@
     window.mapboxgl.Map = PatchedMap;
   }
 
-  var patchAttempts = 0;
-  var patchTimer = setInterval(function () {
+  let patchAttempts = 0;
+  const patchTimer = setInterval(() => {
     patchMapbox();
     if (window.__swishMapboxPatched || ++patchAttempts > 200) clearInterval(patchTimer);
   }, 50);
@@ -572,15 +547,11 @@
   // ---------------------------
   // 5) Re-run on Jetboost changes
   // ---------------------------
-  function rerun(opts) {
-    opts = opts || {};
-    var forceFit = opts.forceFit || false;
-    var duration = opts.duration != null ? opts.duration : 450;
-
-    var map = getMap();
+  function rerun({ forceFit = false, duration = 450 } = {}) {
+    const map = getMap();
     if (!map) return;
 
-    requestAnimationFrame(function () {
+    requestAnimationFrame(() => {
       applyPadding(map);
 
       if (Date.now() < suppressAutoFitUntil) {
@@ -588,35 +559,34 @@
         return;
       }
 
-      scheduleFit(map, { force: forceFit, duration: duration });
+      scheduleFit(map, { force: forceFit, duration });
       nudgePopupIntoView(map);
     });
   }
 
-  var prev = window.JetboostListUpdated;
+  const prev = window.JetboostListUpdated;
   window.JetboostListUpdated = function (collectionList) {
     try { if (typeof prev === 'function') prev(collectionList); }
     finally { rerun({ forceFit: true, duration: 450 }); }
   };
 
-  // MutationObserver: bail early if the point set hasn't changed
-  var mo = new MutationObserver(function () {
-    var sig = getResultsSignature();
+  // MutationObserver: bail early if the point set hasn't actually changed
+  const mo = new MutationObserver(() => {
+    const sig = getResultsSignature();
     if (sig === lastResultsSig) return;
     rerun({ forceFit: false, duration: 450 });
   });
-
   function watchList() {
-    var list = document.querySelector('.map_list-new');
+    const list = document.querySelector('.map_list-new');
     if (list) mo.observe(list, { childList: true, subtree: true });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watchList);
   else watchList();
 
   // Debounced resize
-  var resizeT = null;
-  window.addEventListener('resize', function () {
+  let resizeT = null;
+  window.addEventListener('resize', () => {
     if (resizeT) clearTimeout(resizeT);
-    resizeT = setTimeout(function () { rerun({ forceFit: false, duration: 0 }); }, 150);
+    resizeT = setTimeout(() => rerun({ forceFit: false, duration: 0 }), 150);
   });
 })();
