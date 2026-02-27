@@ -1,0 +1,21 @@
+.mapboxgl-popup {
+  z-index: 50;
+}
+
+.mapboxgl-popup-content {
+  font: inherit !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  position: relative;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .mapboxgl-popup a:focus-visible,
+  .mapboxgl-popup button:focus-visible,
+  .mapboxgl-popup [tabindex]:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+}
