@@ -337,9 +337,16 @@
     if (window.matchMedia(MOBILE_SCROLL_MQ).matches) {
       const scrollTarget = document.querySelector(MOBILE_SCROLL_TARGET);
       if (scrollTarget) {
+        // Blur immediately so canvas focus can't hijack scroll position
         requestAnimationFrame(() => {
-          scrollTarget.scrollIntoView({ behavior: prefersReducedMotion ? 'instant' : 'smooth', block: 'start' });
+          if (document.activeElement && document.activeElement !== document.body) {
+            document.activeElement.blur();
+          }
         });
+        // Delay scroll until after Jetboost/Mapbox has finished panning + any focus side-effects
+        setTimeout(() => {
+          scrollTarget.scrollIntoView({ behavior: prefersReducedMotion ? 'instant' : 'smooth', block: 'start' });
+        }, 350);
         return;
       }
     }
