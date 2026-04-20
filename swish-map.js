@@ -25,6 +25,8 @@
   const FIT_EXTRA_PAD       = cfg.fitExtraPadding   ?? 60;
 
   const DESKTOP_HOVER_MQ    = cfg.desktopHoverMQ    || '(min-width: 992px) and (hover: hover) and (pointer: fine)';
+  const MOBILE_SCROLL_TARGET = cfg.mobileScrollTarget || '.map_contain';
+  const MOBILE_SCROLL_MQ     = cfg.mobileScrollMQ    || '(max-width: 991px)';
   const HOVER_OPEN_DELAY    = cfg.hoverOpenDelay    ?? 80;
   const HOVER_CLOSE_DELAY   = cfg.hoverCloseDelay   ?? 160;
 
@@ -325,15 +327,24 @@
     }
   }
 
-  // Sidebar card click: freeze auto-fit + restore scroll position
+  // Sidebar card click: freeze auto-fit; on mobile/tablet scroll to map container
   document.addEventListener('click', (e) => {
     const trigger = e.target.closest(TRIGGER_SELECTOR);
     if (!trigger) return;
 
-    const scrollY = window.scrollY;
-
     freezeAutoFit(USER_CLICK_FREEZE_MS);
 
+    if (window.matchMedia(MOBILE_SCROLL_MQ).matches) {
+      const scrollTarget = document.querySelector(MOBILE_SCROLL_TARGET);
+      if (scrollTarget) {
+        requestAnimationFrame(() => {
+          scrollTarget.scrollIntoView({ behavior: prefersReducedMotion ? 'instant' : 'smooth', block: 'start' });
+        });
+        return;
+      }
+    }
+
+    const scrollY = window.scrollY;
     requestAnimationFrame(() => {
       if (document.activeElement && document.activeElement !== document.body) {
         document.activeElement.blur();
