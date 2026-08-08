@@ -33,6 +33,10 @@
   const USER_CLICK_FREEZE_MS       = cfg.clickFreezeMs       ?? 900;
   const USER_MAP_INTERACTION_FREEZE_MS = cfg.mapInteractionFreezeMs ?? 8000;
 
+  const LAZY_LOAD            = cfg.lazyLoad          ?? true;
+  const LAZY_ROOT_MARGIN     = cfg.lazyLoadRootMargin || '200px 0px 200px 0px';
+  const LAZY_PREVIEW         = cfg.lazyLoadPreview    ?? true;
+
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function motionDuration(ms) { return prefersReducedMotion ? 0 : ms; }
 
@@ -506,6 +510,223 @@
   }
 
   // ---------------------------
+  // 3.5) Lazy-load: defer the real (billable) mapboxgl.Map()
+  //      call until the map container is actually visible.
+  // ---------------------------
+  const activatedContainers = new WeakSet();
+
+  // Methods that mutate/subscribe and are safe to queue + replay in order
+  // once the real map exists. Mapbox GL requires addSource/addLayer/getSource
+  // etc. to happen after 'load'/'style.load' fires anyway, so in practice
+  // these are almost always called from inside a queued 'on'/'once' callback,
+  // which itself only runs once the real map is live (see activate() below).
+  const LAZY_QUEUEABLE_METHODS = [
+    'on', 'once', 'off',
+    'addSource', 'removeSource',
+    'addLayer', 'removeLayer', 'moveLayer',
+    'setLayoutProperty', 'setPaintProperty', 'setFilter',
+    'addControl', 'removeControl',
+    'setCenter', 'setZoom', 'jumpTo', 'easeTo', 'flyTo', 'fitBounds', 'panTo',
+    'setPadding', 'setMaxZoom', 'setMinZoom', 'setStyle',
+    'resize', 'triggerRepaint'
+  ];
+
+  function resolveAccessToken(options) {
+    return options?.accessToken || window.mapboxgl.accessToken || null;
+  }
+
+  function normalizeStyleForStatic(style) {
+    if (typeof style === 'string') {
+      const m = style.match(/^mapbox:\/\/styles\/([^/]+)\/([^/?#]+)/);
+      if (m) return `${m[1]}/${m[2]}`;
+    }
+    return 'mapbox/streets-v12';
+  }
+
+  function buildStaticPreviewUrl(container, options) {
+    try {
+      const token = resolveAccessToken(options);
+      if (!token) return null;
+
+      const styleId = normalizeStyleForStatic(options?.style);
+
+      let center = Array.isArray(options?.center) ? options.center : null;
+      if (!center) {
+        const pts = getVisiblePoints();
+        if (pts.length) {
+          const avgLng = pts.reduce((s, p) => s + p.lng, 0) / pts.length;
+          const avgLat = pts.reduce((s, p) => s + p.lat, 0) / pts.length;
+          center = [avgLng, avgLat];
+        }
+      }
+      if (!center) return null;
+
+      const zoom = Number.isFinite(options?.zoom) ? options.zoom : 9;
+
+      const rect = container.getBoundingClientRect();
+      const w = Math.max(64, Math.min(1280, Math.round(rect.width) || 640));
+      const h = Math.max(64, Math.min(1280, Math.round(rect.height) || 480));
+
+      const lng = center[0].toFixed(5);
+      const lat = center[1].toFixed(5);
+      const z = Math.max(0, Math.min(20, zoom)).toFixed(2);
+
+      return `https://api.mapbox.com/styles/v1/${styleId}/static/${lng},${lat},${z}/${w}x${h}@2x?access_token=${encodeURIComponent(token)}`;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function createLazyPlaceholder(container, options) {
+    const el = document.createElement('div');
+    el.className = 'swish-map-lazy-placeholder';
+    el.setAttribute('aria-hidden', 'true');
+    Object.assign(el.style, {
+      position: 'absolute',
+      inset: '0',
+      backgroundColor: '#e9e5df',
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      transition: motionDuration(200) ? 'opacity 200ms ease' : 'none',
+      pointerEvents: 'none'
+    });
+
+    if (LAZY_PREVIEW) {
+      const url = buildStaticPreviewUrl(container, options);
+      if (url) {
+        const img = new Image();
+        img.onload = () => { el.style.backgroundImage = `url("${url}")`; };
+        img.src = url;
+      }
+    }
+
+    if (getComputedStyle(container).position === 'static') {
+      container.style.position = 'relative';
+    }
+
+    container.appendChild(el);
+    return el;
+  }
+
+  // Wraps mapboxgl.Map so the real (billable) instance isn't created until
+  // `container` scrolls into view. Everything Jetboost does to the returned
+  // proxy before that point is queued and replayed, in order, on the real
+  // map the moment it's created. After activation the proxy transparently
+  // forwards to the real map forever, so Jetboost's original reference keeps
+  // working for the life of the page.
+  function makeLazyMap(container, options, OriginalMap) {
+    let realMap = null;
+    let dummyCanvas = null;
+    const queue = [];
+
+    const proxy = new Proxy({}, {
+      get(_target, prop) {
+        if (realMap) {
+          const val = realMap[prop];
+          return typeof val === 'function' ? val.bind(realMap) : val;
+        }
+
+        switch (prop) {
+          case '__swishLazyProxy': return true;
+          case 'loaded':
+          case 'isStyleLoaded':
+          case 'isMoving':
+          case 'isZooming':
+          case 'isRotating':
+            return () => false;
+          case 'getContainer':
+            return () => container;
+          case 'getCanvas':
+            return () => (dummyCanvas || (dummyCanvas = document.createElement('canvas')));
+          case 'getCenter': {
+            const c = Array.isArray(options?.center) ? options.center : [0, 0];
+            return () => ({ lng: c[0], lat: c[1] });
+          }
+          case 'getZoom': {
+            const z = Number.isFinite(options?.zoom) ? options.zoom : 0;
+            return () => z;
+          }
+          case 'getStyle':
+            return () => ({ layers: [], sources: {} });
+          case 'getPadding':
+            return () => ({ top: 0, right: 0, bottom: 0, left: 0 });
+          case 'remove':
+            return () => { disconnect(); };
+        }
+
+        if (LAZY_QUEUEABLE_METHODS.includes(prop)) {
+          return (...args) => { queue.push({ method: prop, args }); return proxy; };
+        }
+
+        // Unknown API surface called before activation: no-op rather than throw.
+        return (...args) => proxy;
+      },
+      set(_target, prop, value) {
+        if (realMap) { realMap[prop] = value; }
+        return true;
+      },
+      has(_target, prop) {
+        return realMap ? (prop in realMap) : true;
+      }
+    });
+
+    let io = null;
+    const disconnect = () => { if (io) { io.disconnect(); io = null; } };
+
+    const placeholder = createLazyPlaceholder(container, options);
+
+    function activate() {
+      if (realMap) return;
+      disconnect();
+      activatedContainers.add(container);
+
+      let map;
+      try {
+        map = new OriginalMap(options);
+        for (const { method, args } of queue) {
+          try { map[method](...args); } catch (e) {}
+        }
+      } catch (e) {
+        console.error('[swish-map] lazy map activation failed, falling back', e);
+        if (placeholder.parentNode) placeholder.remove();
+        return;
+      }
+
+      realMap = map; // proxy now forwards everything live, from here on
+
+      if (placeholder.parentNode) {
+        placeholder.style.opacity = '0';
+        setTimeout(() => placeholder.remove(), motionDuration(200) + 20);
+      }
+
+      window.__swishJetboostMap = map;
+
+      const run = () => {
+        applyPadding(map);
+        lastResultsSig = getResultsSignature();
+        scheduleFit(map, { force: true, duration: 0 });
+        watchForPopups(map);
+        bindUserInteractionFreeze(map);
+        disableCanvasFocus(map);
+        setupDesktopHover(map);
+      };
+
+      if (map.loaded()) run();
+      else map.once('load', run);
+    }
+
+    io = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) { activate(); break; }
+      }
+    }, { root: null, rootMargin: LAZY_ROOT_MARGIN, threshold: 0.01 });
+
+    io.observe(container);
+
+    return proxy;
+  }
+
+  // ---------------------------
   // 4) Capture Jetboost's Mapbox instance
   // ---------------------------
   function patchMapbox() {
@@ -515,15 +736,26 @@
     const OriginalMap = window.mapboxgl.Map;
 
     function PatchedMap(options) {
+      const container =
+        typeof options?.container === 'string'
+          ? document.getElementById(options.container)
+          : options?.container;
+
+      const isTarget = !!(container && container.matches && container.matches(MAP_SELECTOR));
+
+      if (LAZY_LOAD && isTarget && !activatedContainers.has(container)) {
+        try {
+          return makeLazyMap(container, options, OriginalMap);
+        } catch (e) {
+          console.error('[swish-map] lazy-load setup failed, loading map immediately', e);
+          // fall through to the immediate path below
+        }
+      }
+
       const map = new OriginalMap(options);
 
       try {
-        const container =
-          typeof options?.container === 'string'
-            ? document.getElementById(options.container)
-            : options?.container;
-
-        if (container && container.matches && container.matches(MAP_SELECTOR)) {
+        if (isTarget) {
           window.__swishJetboostMap = map;
 
           const run = () => {
