@@ -65,6 +65,20 @@ All options are set via `window.__swishMapConfig` before the script loads. Every
 | `disableCanvasFocus` | `true` | Prevent map canvas from stealing focus (fixes mobile scroll-jump) |
 | `disableScrollZoomTouch` | `true` | Disable scroll-zoom and drag-rotate on touch devices |
 
+### Lazy Loading (Map Load Billing)
+
+Mapbox bills a "map load" every time `new mapboxgl.Map()` runs in a browser. By default, swish-map defers that call — and the billable load it causes — until the map container actually scrolls into view, instead of firing on every page load whether or not a visitor ever sees the map. A static preview image (via the Mapbox Static Images API, billed on a separate, much cheaper meter) is shown in its place until then.
+
+Everything Jetboost does to the map before it's visible (registering `load` handlers, adding sources/layers, etc.) is queued and replayed on the real map the instant it's created, so functionality is unaffected — visitors who never scroll to the map simply never trigger a load.
+
+| Option | Default | Description |
+|---|---|---|
+| `lazyLoad` | `true` | Defer real map creation until the container is scrolled into view. Set `false` to restore the old always-load-immediately behavior. |
+| `lazyLoadRootMargin` | `'200px 0px 200px 0px'` | `IntersectionObserver` rootMargin — how far before the container enters the viewport to trigger loading. |
+| `lazyLoadPreview` | `true` | Show a Mapbox Static Images API preview while waiting to activate. Set `false` for a plain placeholder (no extra static-image requests). |
+
+> **Note:** This only reduces loads for the *initial* map on a page. If Jetboost itself recreates the map (rather than updating markers on the existing instance) on every filter change, each of those still counts as a separate load — check your Mapbox account's Statistics tab (by URL/referrer) to confirm that isn't happening, and consider restricting your Mapbox access token to your production domain(s) under Tokens → URL restrictions if you see loads from unexpected sources.
+
 ## Example: Custom Config
 
 ```html
