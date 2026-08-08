@@ -1,6 +1,6 @@
 /**
  * Swish Map — Drop-in Mapbox integration for Webflow + Jetboost
- * https://github.com/joshuahampson/swish
+ * https://github.com/hmpsn/swish
  *
  * Configure via window.__swishMapConfig before loading this script.
  * See README.md for all options.

@@ -1,11 +1,11 @@
 {
   "name": "swish-map",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Drop-in Mapbox integration for Webflow + Jetboost maps",
   "main": "swish-map.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/joshuahampson/swish"
+    "url": "https://github.com/hmpsn/swish"
   },
   "keywords": ["mapbox", "webflow", "jetboost"],
   "license": "MIT"

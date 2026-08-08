@@ -7,7 +7,7 @@ Drop-in Mapbox integration for Webflow + Jetboost maps. Handles auto-fitting, si
 Add this to your Webflow **page-level** custom code (before `</body>`):
 
 ```html
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/joshuahampson/swish@1.0.0/swish-map.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/hmpsn/swish@1.0.2/swish-map.css" />
 
 <script>
   window.__swishMapConfig = {
@@ -15,10 +15,10 @@ Add this to your Webflow **page-level** custom code (before `</body>`):
     edgePadding: 48
   };
 </script>
-<script src="https://cdn.jsdelivr.net/gh/joshuahampson/swish@1.0.0/swish-map.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/hmpsn/swish@1.0.2/swish-map.js"></script>
 ```
 
-> **Tip:** Replace `@1.0.0` with a specific tag to pin a version, or use `@main` for latest (not recommended in production).
+> **Tip:** Replace `@1.0.2` with a specific tag to pin a version, or use `@main` for latest (not recommended in production).
 
 ## Configuration
 
@@ -94,7 +94,7 @@ Everything Jetboost does to the map before it's visible (registering `load` hand
     mapInteractionFreezeMs: 5000
   };
 </script>
-<script src="https://cdn.jsdelivr.net/gh/joshuahampson/swish@1.0.0/swish-map.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/hmpsn/swish@1.0.2/swish-map.js"></script>
 ```
 
 ## What It Does
@@ -111,9 +111,11 @@ Everything Jetboost does to the map before it's visible (registering `load` hand
 Tag releases with semver (`v1.0.0`, `v1.1.0`, etc.) so jsDelivr URLs are stable:
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.0.2
+git push origin v1.0.2
 ```
+
+> **Warning:** Never delete or move a version tag once it's been pushed. jsDelivr caches tagged-version content as permanently immutable (1-year, `immutable` cache-control) and does **not** re-fetch it on retag — even an explicit cache purge won't fix it. If a tagged release needs a correction, always publish a new version number instead of reusing the old one.
 
 ## License
 
